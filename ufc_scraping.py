@@ -2,6 +2,8 @@ from bs4 import BeautifulSoup
 import requests
 import pandas as pd
 
+# changes: change var names and restructure functions with a main function
+
 ufc_stats = "http://ufcstats.com/statistics/events/completed"
 
 # scraping ufcstats.com to give links to every documented fight card
@@ -21,11 +23,20 @@ def fights(links):
     for link in links[1:2]:
         fight = requests.get(link)
         card_soup = BeautifulSoup(fight.content, 'html.parser')
-        fight_body_html = card_soup.find('tbody', class_='b-fight-details__table-body')
-        fight_links = fight_body_html.find_all('tr')
+        fight_element = card_soup.find('tbody', class_='b-fight-details__table-body')
+        fight_links = fight_element.find_all('tr')
         for fights in fight_links:
             fights_on_card.append(fights['data-link'])
     return fights_on_card
 
+# pretty cooked rn dont know what p is
+def get_stats(urls):
+    for url in urls:
+        fight = requests.get(url)
+        fight_soup = BeautifulSoup(fight.content, 'html.parser')
+        fight_element = fight_soup.find('table', class_='b-fight-details__table js-fight-table')
+        knockdowns = fight_element.find_all('p')
+        return knockdowns
 
-print(fights(card_finder(ufc_stats)))
+something = fights(card_finder(ufc_stats))
+print(get_stats(something))

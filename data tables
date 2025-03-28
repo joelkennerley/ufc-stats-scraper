@@ -1,0 +1,6 @@
+Fighter(Id, Name, Height, Weight, reach, stance, DOB, record, SLpM, str acc, SApM, Str. Def, TD Avg, TD Acc, TD Def, Sub. Avg) ID p key
+
+Fight(F1, F2, date, winner, method, round, time, format, details) F1,F2,Date p key, F1 | F2 f key,  
+
+Round_Statistics(Fight_ID, Fighter_ID, round, sig str a, sig str l, sig %, head a, head l, body a, body l, leg a, leg l,
+                 distance, clinch, ground, kd, tot str, td, td %, sub att, rev, control) Fight_ID,fighter_ID,round p key

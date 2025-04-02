@@ -34,9 +34,28 @@ def get_stats(urls):
     for url in urls:
         fight = requests.get(url)
         fight_soup = BeautifulSoup(fight.content, 'html.parser')
-        fight_element = fight_soup.find('table', class_='b-fight-details__table js-fight-table')
-        knockdowns = fight_element.find_all('p')
-        return knockdowns
+        fight_element = fight_soup.find('table', class_="b-fight-details__table js-fight-table")
 
-something = fights(card_finder(ufc_stats))
-print(get_stats(something))
+        # retrieves html for each round
+        fight_table = fight_soup.find("table", class_="b-fight-details__table")
+        fight_rows = fight_table.find_all("tr", class_="b-fight-details__table-row")
+
+        round_stats = {}
+        # stats are put into a dict with key=round, and values = name, sig str...
+        for i, row in enumerate(fight_rows):
+            f1 = []
+            f2 = []
+            for td in row.find_all('td'):
+                p = td.find_all('p')
+                if len(p) >= 2:
+                    f1.append(p[0].get_text(strip=True))
+                    f2.append(p[1].get_text(strip=True))
+            round_stats[i] = [f1, f2]
+        return round_stats
+
+def main():
+    something = fights(card_finder(ufc_stats))
+    print(get_stats(something))
+
+if __name__ == "__main__":
+    main()

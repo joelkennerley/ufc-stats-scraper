@@ -31,31 +31,47 @@ def fights(card_urls):
 
 # retrieve stats for each round in a fight for every fight
 def get_stats(fight_urls):
+    cols = ['fight_id', 'round', 'name', 'sig_str', '']
+    fight_stats_df = pd.Dataframe(columns = cols)
     for fight_ID, url in enumerate(fight_urls):
         fight = requests.get(url)
         fight_soup = BeautifulSoup(fight.content, 'html.parser')
 
         # retrieves html for each round
-        fight_table = fight_soup.find("table", class_="b-fight-details__table")
-        round_rows = fight_table.find_all("tr", class_="b-fight-details__table-row")
+        fight_table = fight_soup.find_all("table", class_="b-fight-details__table")
+        totals_round_rows = fight_table[0].find_all("tr", class_="b-fight-details__table-row")
+        sig_round_rows = fight_table[1].find_all("tr", class_="b-fight-details__table-row")
 
-        round_stats = {}
         # stats are put into a dict with key=round, and values = name, sig str...
-        for round_no, row in enumerate(round_rows):
-            f1 = [fight_ID, round_no]
-            f2 = [fight_ID, round_no]
-            for td in row.find_all('td'):
-                p = td.find_all('p')
-                if len(p) >= 2:
-                    f1.append(p[0].get_text(strip=True))
-                    f2.append(p[1].get_text(strip=True))
-            round_stats[round_no] = [f1, f2]
-        return round_stats
+        def round_stats(stat_soup, fight_id):
+            all_rounds=[]
+            for round_no, row in enumerate(stat_soup):
+                f1 = [fight_id, round_no]
+                f2 = [fight_id, round_no]
+                for td in row.find_all('td'):
+                    p = td.find_all('p')
+                    if len(p) >= 2:
+                        f1.append(p[0].get_text(strip=True))
+                        f2.append(p[1].get_text(strip=True))
+                all_rounds.append(f1)
+                all_rounds.append(f2)
+            return all_rounds
+
+        # slicing to remove headers of the tables
+        totals = round_stats(totals_round_rows, fight_ID)[2:]
+        sigs = round_stats(sig_round_rows, fight_ID)[2:]
+        # removing duplicated data already in totals
+        for sublist in sigs:
+            del sublist[:5]
+        # adding totals with associated sig str breakdowns
+        result = [sub1 + sub2 for sub1, sub2 in zip(totals, sigs)]
+    return result
+
 
 def main():
     fight_cards = card_finder(ufc_stats)
     fight_links = fights(fight_cards)
-    fight_stats = get_stats(fight_links)
+    fight_stats = get_stats(fight_links[:1])
     print(fight_stats)
 
 if __name__ == "__main__":

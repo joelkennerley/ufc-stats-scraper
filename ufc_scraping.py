@@ -31,8 +31,8 @@ def fights(card_urls):
 
 # retrieve stats for each round in a fight for every fight
 def get_stats(fight_urls):
-    cols = ['fight_id', 'round', 'name', 'sig_str', '']
-    fight_stats_df = pd.Dataframe(columns = cols)
+    processed_data = []
+
     for fight_ID, url in enumerate(fight_urls):
         fight = requests.get(url)
         fight_soup = BeautifulSoup(fight.content, 'html.parser')
@@ -63,16 +63,36 @@ def get_stats(fight_urls):
         # removing duplicated data already in totals
         for sublist in sigs:
             del sublist[:5]
+
         # adding totals with associated sig str breakdowns
         result = [sub1 + sub2 for sub1, sub2 in zip(totals, sigs)]
-    return result
+
+        # splitting strings with "of" into 2 different columns
+        for row in result:
+            new_row = []
+            for i, item in enumerate(row):
+                if isinstance(item, str) and ' of ' in item:
+                    attempted, landed = item.split(' of ')
+                    new_row.extend([int(attempted), int(landed)])
+                else:
+                    new_row.append(item)
+            processed_data.append(new_row)
+
+
+    return processed_data
+
+def create_dataframe(row_entries):
+    cols = ['fight_id', 'round', 'name', 'kd', 'sig_l', 'sig_a', 'sig_p', 'total_l', 'total_a', 'td_l',
+            'td_a', 'td_p', 'sub', 'rev', 'ctrl', 'head_l', 'head_a', 'body_l', 'body_a', 'leg_l', 'leg_a', 'distance_l',
+            'distance_a', 'clinch_l', 'clinch_a', 'ground_l', 'ground_a']
+    fight_stats_df = pd.DataFrame(row_entries, columns = cols)
+    return fight_stats_df
 
 
 def main():
     fight_cards = card_finder(ufc_stats)
     fight_links = fights(fight_cards)
-    fight_stats = get_stats(fight_links[:1])
-    print(fight_stats)
-
+    fight_stats = get_stats(fight_links)
+    print(create_dataframe(fight_stats))
 if __name__ == "__main__":
     main()

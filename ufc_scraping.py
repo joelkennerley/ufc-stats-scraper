@@ -1,10 +1,23 @@
 from bs4 import BeautifulSoup
 import requests
 import pandas as pd
+from fake_useragent import UserAgent
+import random
+import time
+
+ua = UserAgent()
 
 # changes: change var names and restructure functions with a main function
 
 ufc_stats = "http://ufcstats.com/statistics/events/completed?page=all"
+
+
+def get_headers():
+    return {"User-Agent": ua.random}
+
+# === Delay between requests ===
+def sleep_polite():
+    time.sleep(random.uniform(1.5, 3.5))
 
 # scraping ufcstats.com to give links to every documented fight card
 def card_finder(url):
@@ -20,13 +33,17 @@ def card_finder(url):
 # retrieving each fight link in each card
 def fights(card_urls):
     all_fights_links = []
-    for link in card_urls[1:2]:
-        card = requests.get(link)
-        card_soup = BeautifulSoup(card.content, 'html.parser')
-        fight_element = card_soup.find('tbody', class_='b-fight-details__table-body')
-        fight_rows = fight_element.find_all('tr')
-        for fights in fight_rows:
-            all_fights_links.append(fights['data-link'])
+    for link in card_urls[1:5]:
+        # sleep_polite()
+        try:
+            card = requests.get(link, headers=get_headers())
+            card_soup = BeautifulSoup(card.content, 'html.parser')
+            fight_element = card_soup.find('tbody', class_='b-fight-details__table-body')
+            fight_rows = fight_element.find_all('tr')
+            for fights in fight_rows:
+                all_fights_links.append(fights['data-link'])
+        except Exception as e:
+            print(f"Error with card {link}: {e}")
     return all_fights_links
 
 
@@ -97,23 +114,27 @@ def clean_round(totals, sigs):
 def get_stats(fight_urls):
     processed_data = []
     for fight_ID, url in enumerate(fight_urls):
-        fight = requests.get(url)
-        fight_soup = BeautifulSoup(fight.content, 'html.parser')
+        try:
+            # sleep_polite()
+            fight = requests.get(url, headers=get_headers())
+            fight_soup = BeautifulSoup(fight.content, 'html.parser')
 
-        # retrieves html for each round
-        fight_table = fight_soup.find_all("table", class_="b-fight-details__table")
-        totals_round_rows = fight_table[0].find_all("tr", class_="b-fight-details__table-row")
-        sig_round_rows = fight_table[1].find_all("tr", class_="b-fight-details__table-row")
+            # retrieves html for each round
+            fight_table = fight_soup.find_all("table", class_="b-fight-details__table")
+            totals_round_rows = fight_table[0].find_all("tr", class_="b-fight-details__table-row")
+            sig_round_rows = fight_table[1].find_all("tr", class_="b-fight-details__table-row")
 
-        # retrieves raw data from the html
-        totals = round_stats(totals_round_rows, fight_ID)
-        sigs = round_stats(sig_round_rows, fight_ID)
+            # retrieves raw data from the html
+            totals = round_stats(totals_round_rows, fight_ID)
+            sigs = round_stats(sig_round_rows, fight_ID)
 
-        # cleaning data
-        cleaned_rounds = clean_round(totals, sigs)
+            # cleaning data
+            cleaned_rounds = clean_round(totals, sigs)
 
-        # splitting strings with "of" into 2 different columns
-        processed_data.extend(cleaned_rounds)
+            # splitting strings with "of" into 2 different columns
+            processed_data.extend(cleaned_rounds)
+        except Exception as e:
+            print(f"get stats Failed on fight {url}: {e}")
 
     return processed_data
 
@@ -134,6 +155,11 @@ def main():
     fight_cards = card_finder(ufc_stats)
     fight_links = fights(fight_cards)
     fight_stats = get_stats(fight_links)
-    print(create_dataframe(fight_stats))
+    fight_df = create_dataframe(fight_stats)
+    fight_df.to_csv('round_statistics.csv', index=False)
+
+
+
+
 if __name__ == "__main__":
     main()

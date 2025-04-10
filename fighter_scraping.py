@@ -37,8 +37,17 @@ def get_fighter_stats(fighter_url):
     else:
         nc = 0
 
-    return [name, wins, losses, draws, nc]
+    stat_list.extend([name, wins, losses, draws, nc])
 
+    div_element = soup.find('div', class_='b-fight-details b-fight-details_margin-top')
+    li_elements = div_element.find_all('li', class_='b-list__box-list-item b-list__box-list-item_type_block')
+    for li in li_elements:
+        full_text = li.get_text(strip=True)
+        value = full_text.split(":", 1)[-1].strip()  # Split at the first colon and take the part after it
+        if value: # filtering out empty strings because one of li elements is empty
+            stat_list.append(value)
+
+    return stat_list
 
 def get_headers():
     return {"User-Agent": ua.random}
@@ -48,16 +57,16 @@ def sleep_polite():
     time.sleep(random.uniform(1, 2))
 
 def main():
-    # fighter_urls = []
-    # for i in list(string.ascii_lowercase):
-    #     result = requests.get(f'http://ufcstats.com/statistics/fighters?char={i}&page=all')
-    #     fighter_urls.extend(get_fighter_links(result))
-    #
-    #
-    # with ThreadPoolExecutor as executor:
-    #     fighter_stats = list(executor.map(get_fighter_stats, fighter_urls))
+    fighter_urls = []
+    for i in list(string.ascii_lowercase):
+        result = requests.get(f'http://ufcstats.com/statistics/fighters?char={i}&page=all')
+        fighter_urls.extend(get_fighter_links(result))
 
-    print(get_fighter_stats('http://ufcstats.com/fighter-details/1af1170ed937cba7'))
+
+    with ThreadPoolExecutor as executor:
+        fighter_stats = list(executor.map(get_fighter_stats, fighter_urls[:1]))
+
+    print(fighter_stats)
 
 if __name__ == "__main__":
     main()

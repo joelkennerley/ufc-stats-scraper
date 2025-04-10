@@ -32,11 +32,12 @@ def get_fighter_stats(fighter_url):
     # record list: ['record:', '11-1-1', '(1', 'NC)']
     record_list = record_element.split()
     wins, losses, draws = record_list[1].split('-')
-    if len(record_element)>2:
+    if len(record_list)>2:
         nc = record_list[2][1] # removes '(' before number
     else:
         nc = 0
-    return stat_list
+
+    return [name, wins, losses, draws, nc]
 
 
 def get_headers():

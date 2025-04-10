@@ -4,20 +4,18 @@ import pandas as pd
 from fake_useragent import UserAgent
 import random
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 ua = UserAgent()
 
-# changes: change var names and restructure functions with a main function
-
 ufc_stats = "http://ufcstats.com/statistics/events/completed?page=all"
-
 
 def get_headers():
     return {"User-Agent": ua.random}
 
 # === Delay between requests ===
 def sleep_polite():
-    time.sleep(random.uniform(1.5, 3.5))
+    time.sleep(random.uniform(1, 2))
 
 # scraping ufcstats.com to give links to every documented fight card
 def card_finder(url):
@@ -31,21 +29,13 @@ def card_finder(url):
     return card_links
 
 # retrieving each fight link in each card
-def fights(card_urls):
-    all_fights_links = []
-    for link in card_urls[1:5]:
-        # sleep_polite()
-        try:
-            card = requests.get(link, headers=get_headers())
-            card_soup = BeautifulSoup(card.content, 'html.parser')
-            fight_element = card_soup.find('tbody', class_='b-fight-details__table-body')
-            fight_rows = fight_element.find_all('tr')
-            for fights in fight_rows:
-                all_fights_links.append(fights['data-link'])
-        except Exception as e:
-            print(f"Error with card {link}: {e}")
-    return all_fights_links
-
+def get_fight_links(link):
+    sleep_polite()
+    card = requests.get(link, headers=get_headers())
+    card_soup = BeautifulSoup(card.content, 'html.parser')
+    fight_element = card_soup.find('tbody', class_='b-fight-details__table-body')
+    fight_rows = fight_element.find_all('tr')
+    return [fights['data-link'] for fights in fight_rows]
 
 def round_stats(stat_soup, fight_id):
     """
@@ -96,47 +86,41 @@ def clean_round(totals, sigs):
     # slicing to remove headers of the tables
     totals = totals[2:]
     sigs = sigs[2:]
-
     # removing duplicated data already in totals
     for sublist in sigs:
         del sublist[:5]
-
     # adding totals with associated sig str breakdowns
     merged = [sub1 + sub2 for sub1, sub2 in zip(totals, sigs)]
-
     # splitting stats into attempted and landed
     result = split_attempted_landed(merged)
 
     return result
 
-
 # retrieve stats for each round in a fight for every fight
 def get_stats(fight_urls):
-    processed_data = []
-    for fight_ID, url in enumerate(fight_urls):
-        try:
-            # sleep_polite()
-            fight = requests.get(url, headers=get_headers())
-            fight_soup = BeautifulSoup(fight.content, 'html.parser')
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        processed_data = list(executor.map(process_fight_data, enumerate(fight_urls)))
+    flat_list = flatten(processed_data)
+    return flat_list
 
-            # retrieves html for each round
-            fight_table = fight_soup.find_all("table", class_="b-fight-details__table")
-            totals_round_rows = fight_table[0].find_all("tr", class_="b-fight-details__table-row")
-            sig_round_rows = fight_table[1].find_all("tr", class_="b-fight-details__table-row")
+def process_fight_data(fight_urls):
+    fight_ID, url = fight_urls
+    sleep_polite()
+    fight = requests.get(url, headers=get_headers())
+    fight_soup = BeautifulSoup(fight.content, 'html.parser')
+    fight_table = fight_soup.find_all("table", class_="b-fight-details__table")
+    totals_round_rows = fight_table[0].find_all("tr", class_="b-fight-details__table-row")
+    sig_round_rows = fight_table[1].find_all("tr", class_="b-fight-details__table-row")
+    totals = round_stats(totals_round_rows, fight_ID)
+    sigs = round_stats(sig_round_rows, fight_ID)
+    cleaned_rounds = clean_round(totals, sigs)
+    return cleaned_rounds
 
-            # retrieves raw data from the html
-            totals = round_stats(totals_round_rows, fight_ID)
-            sigs = round_stats(sig_round_rows, fight_ID)
-
-            # cleaning data
-            cleaned_rounds = clean_round(totals, sigs)
-
-            # splitting strings with "of" into 2 different columns
-            processed_data.extend(cleaned_rounds)
-        except Exception as e:
-            print(f"get stats Failed on fight {url}: {e}")
-
-    return processed_data
+def flatten(list_of_lists):
+    flattened_list = []
+    for nested in list_of_lists:
+        flattened_list.extend(nested)
+    return flattened_list
 
 def create_dataframe(row_entries):
     """
@@ -152,13 +136,22 @@ def create_dataframe(row_entries):
 
 
 def main():
-    fight_cards = card_finder(ufc_stats)
-    fight_links = fights(fight_cards)
-    fight_stats = get_stats(fight_links)
+    # Get card links
+    fight_cards = card_finder(ufc_stats)[1:3]
+
+    # Fetch fight links concurrently
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        fight_links = list(executor.map(get_fight_links, fight_cards))
+
+    # Flatten the list of lists of fight links
+    flat_fight_links = flatten(fight_links)
+
+    # Retrieve stats concurrently
+    fight_stats = get_stats(flat_fight_links)
+
+    # Create and save the dataframe
     fight_df = create_dataframe(fight_stats)
-    fight_df.to_csv('round_statistics.csv', index=False)
-
-
+    fight_df.to_csv('bound_statistics.csv', index=False)
 
 
 if __name__ == "__main__":

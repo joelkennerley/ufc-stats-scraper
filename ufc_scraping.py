@@ -98,7 +98,7 @@ def clean_round(totals, sigs):
 
 # retrieve stats for each round in a fight for every fight
 def get_stats(fight_urls):
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         processed_data = list(executor.map(process_fight_data, enumerate(fight_urls)))
     flat_list = flatten(processed_data)
     return flat_list
@@ -109,6 +109,9 @@ def process_fight_data(fight_urls):
     fight = requests.get(url, headers=get_headers())
     fight_soup = BeautifulSoup(fight.content, 'html.parser')
     fight_table = fight_soup.find_all("table", class_="b-fight-details__table")
+    if len(fight_table) < 2:
+        print(f' broken url: {url}')
+        return []
     totals_round_rows = fight_table[0].find_all("tr", class_="b-fight-details__table-row")
     sig_round_rows = fight_table[1].find_all("tr", class_="b-fight-details__table-row")
     totals = round_stats(totals_round_rows, fight_ID)
@@ -136,11 +139,12 @@ def create_dataframe(row_entries):
 
 
 def main():
+    start = time.time()
     # Get card links
-    fight_cards = card_finder(ufc_stats)[1:3]
+    fight_cards = card_finder(ufc_stats)[1:-30]
 
     # Fetch fight links concurrently
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         fight_links = list(executor.map(get_fight_links, fight_cards))
 
     # Flatten the list of lists of fight links
@@ -152,6 +156,8 @@ def main():
     # Create and save the dataframe
     fight_df = create_dataframe(fight_stats)
     fight_df.to_csv('bound_statistics.csv', index=False)
+    end = time.time()
+    print(f'Time taken: {end - start:.2f} seconds')
 
 
 if __name__ == "__main__":

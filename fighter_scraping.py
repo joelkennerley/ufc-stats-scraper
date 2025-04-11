@@ -13,6 +13,7 @@ ufc_fighters = 'http://ufcstats.com/statistics/fighters?char=a&page=all'
 # retrieves links to fighters stats page
 # maybe add multithreading??? but only 26 requests so really not too bad
 def get_fighter_links(letter):
+    sleep_polite()
     response = requests.get(f'http://ufcstats.com/statistics/fighters?char={letter}&page=all', headers=get_headers())
     soup = BeautifulSoup(response.content, 'html.parser')
     fighter_table = soup.find('table', class_='b-statistics__table')
@@ -25,7 +26,7 @@ def get_fighter_links(letter):
     return fighters_urls
 
 def get_fighter_stats(fighter_url):
-    # sleep_polite()
+    sleep_polite()
     stat_list = []
     response = requests.get(fighter_url, headers=get_headers())
     soup = BeautifulSoup(response.content, 'html.parser')
@@ -82,7 +83,7 @@ def main():
     fighter_urls_flattened = flatten(fighter_urls)
 
     with ThreadPoolExecutor(max_workers=10) as executor:
-        fighter_stats = list(executor.map(get_fighter_stats, fighter_urls_flattened[:5]))
+        fighter_stats = list(executor.map(get_fighter_stats, fighter_urls_flattened))
 
     fighter_df = create_dataframe(fighter_stats)
     fighter_df.to_csv('fighter_stats.csv', index=False)

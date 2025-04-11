@@ -12,7 +12,8 @@ ufc_fighters = 'http://ufcstats.com/statistics/fighters?char=a&page=all'
 
 # retrieves links to fighters stats page
 # maybe add multithreading??? but only 26 requests so really not too bad
-def get_fighter_links(response):
+def get_fighter_links(letter):
+    response = requests.get(f'http://ufcstats.com/statistics/fighters?char={letter}&page=all', headers=get_headers())
     soup = BeautifulSoup(response.content, 'html.parser')
     fighter_table = soup.find('table', class_='b-statistics__table')
     fighter_rows = fighter_table.find_all('tr', class_='b-statistics__table-row')
@@ -57,16 +58,35 @@ def get_headers():
 def sleep_polite():
     time.sleep(random.uniform(1, 2))
 
+def flatten(list_of_lists):
+    flattened_list = []
+    for nested in list_of_lists:
+        flattened_list.extend(nested)
+    return flattened_list
+
+def create_dataframe(row_entries):
+    """
+    creates pandas dataframe of every round ever
+    :param row_entries: list of lists, each list represents a round
+    :return: pd dataframe
+    """
+    cols = ['name', 'wins', 'losses', 'draws', 'no contests', 'height', 'weight', 'reach', 'stance',
+            'dob', 'SLpM', 'str acc', 'SApM', 'str def', 'td avg', 'td acc', 'td def', 'sub avg']
+    fighter_stats_df = pd.DataFrame(row_entries, columns = cols)
+    return fighter_stats_df
+
 def main():
-    fighter_urls = []
-    for i in list(string.ascii_lowercase):
-        result = requests.get(f'http://ufcstats.com/statistics/fighters?char={i}&page=all', headers=get_headers())
-        fighter_urls.extend(get_fighter_links(result))
 
     with ThreadPoolExecutor(max_workers=10) as executor:
-        fighter_stats = list(executor.map(get_fighter_stats, fighter_urls[:5]))
+        fighter_urls = list(executor.map(get_fighter_links, list(string.ascii_lowercase)))
+    fighter_urls_flattened = flatten(fighter_urls)
 
-    print(fighter_stats)
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        fighter_stats = list(executor.map(get_fighter_stats, fighter_urls_flattened[:5]))
+
+    fighter_df = create_dataframe(fighter_stats)
+    fighter_df.to_csv('fighter_stats.csv', index=False)
+
 
 if __name__ == "__main__":
     main()

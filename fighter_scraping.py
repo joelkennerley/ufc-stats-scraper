@@ -15,10 +15,12 @@ ufc_fighters = 'http://ufcstats.com/statistics/fighters?char=a&page=all'
 def get_fighter_links(response):
     soup = BeautifulSoup(response.content, 'html.parser')
     fighter_table = soup.find('table', class_='b-statistics__table')
-    fighter_rows = fighter_table.find_all('a', class_='b-link b-link_style_black')
+    fighter_rows = fighter_table.find_all('tr', class_='b-statistics__table-row')
+    fighter_rows = fighter_rows[2:] # removing header element and empty element without href
     fighters_urls = []
     for row in fighter_rows:
-        fighters_urls.append(row['href'])
+        hyperlink = row.find('a', class_='b-link b-link_style_black')
+        fighters_urls.append(hyperlink['href'])
     return fighters_urls
 
 def get_fighter_stats(fighter_url):
@@ -44,9 +46,8 @@ def get_fighter_stats(fighter_url):
     for li in li_elements:
         full_text = li.get_text(strip=True)
         value = full_text.split(":", 1)[-1].strip()  # Split at the first colon and take the part after it
-        if value: # filtering out empty strings because one of li elements is empty
-            stat_list.append(value)
-
+        stat_list.append(value)
+    stat_list.pop(-5) # deleting because theres an extra li element in every stats table
     return stat_list
 
 def get_headers():
@@ -59,12 +60,11 @@ def sleep_polite():
 def main():
     fighter_urls = []
     for i in list(string.ascii_lowercase):
-        result = requests.get(f'http://ufcstats.com/statistics/fighters?char={i}&page=all')
+        result = requests.get(f'http://ufcstats.com/statistics/fighters?char={i}&page=all', headers=get_headers())
         fighter_urls.extend(get_fighter_links(result))
 
-
-    with ThreadPoolExecutor as executor:
-        fighter_stats = list(executor.map(get_fighter_stats, fighter_urls[:1]))
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        fighter_stats = list(executor.map(get_fighter_stats, fighter_urls[:5]))
 
     print(fighter_stats)
 

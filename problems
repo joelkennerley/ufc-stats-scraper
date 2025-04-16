@@ -1,9 +1,0 @@
-Problems:
-
-For some reason my scraped data for fights doesnt include these 2 fights:
-http://ufcstats.com/fight-details/8b3b38167060b1d7 
-http://ufcstats.com/fight-details/343749a2f7c5d78b
-
-Havent figured how to get a fighters gender as it is not listed on the ufcstats.com page.
-
-can solve this problem by searching in fight table as it says the gender.

@@ -10,12 +10,41 @@ ua = UserAgent()
 
 ufc_stats = "http://ufcstats.com/statistics/events/completed?page=all"
 
+# ============== Helper functions ================================
+
 def get_headers():
     return {"User-Agent": ua.random}
 
-# === Delay between requests ===
+# Delay between requests
 def sleep_polite():
     time.sleep(random.uniform(1, 2))
+
+def flatten(list_of_lists):
+    flattened_list = []
+    for nested in list_of_lists:
+        flattened_list.extend(nested)
+    return flattened_list
+
+def create_stat_df(data):
+    """
+    creates pandas dataframe of every round ever
+    :param data: list of lists, each list represents a round
+    :return: pd dataframe
+    """
+    cols = ['fight_id', 'round', 'name', 'kd', 'sig_l', 'sig_a', 'sig_p', 'total_l', 'total_a', 'td_l',
+            'td_a', 'td_p', 'sub', 'rev', 'ctrl', 'head_l', 'head_a', 'body_l', 'body_a', 'leg_l', 'leg_a', 'distance_l',
+            'distance_a', 'clinch_l', 'clinch_a', 'ground_l', 'ground_a']
+    fight_stats_df = pd.DataFrame(data, columns = cols)
+    return fight_stats_df
+
+def create_summary_df(data):
+    cols = ['fight_id', 'fighter1', 'fighter2', 'result', 'bout', 'method', 'round', 'time', 'format', 'ref']
+    fight_summary_df = pd.DataFrame(data, columns=cols)
+    return fight_summary_df
+
+# ==============================================================
+
+# ============= Retrieving links for extraction ================
 
 # scraping ufcstats.com to give links to every documented fight card
 def card_finder(url):
@@ -36,6 +65,10 @@ def get_fight_links(link):
     fight_element = card_soup.find('tbody', class_='b-fight-details__table-body')
     fight_rows = fight_element.find_all('tr')
     return [fights['data-link'] for fights in fight_rows]
+
+# ================================================================
+
+# ============ Extracting fight stats and summaries ==============
 
 def round_stats(stat_soup, fight_id):
     """
@@ -100,14 +133,25 @@ def clean_round(totals, sigs):
 def get_stats(fight_urls):
     with ThreadPoolExecutor(max_workers=10) as executor:
         processed_data = list(executor.map(process_fight_data, enumerate(fight_urls)))
-    flat_list = flatten(processed_data)
-    return flat_list
+
+    all_stats = []
+    fight_summaries =[]
+    for rounds, summary in processed_data:
+        all_stats.extend(rounds)
+        if summary:
+            fight_summaries.append(summary)
+
+    return all_stats, fight_summaries
+
 
 def process_fight_data(fight_urls):
     fight_ID, url = fight_urls
     sleep_polite()
     fight = requests.get(url, headers=get_headers())
     fight_soup = BeautifulSoup(fight.content, 'html.parser')
+
+    fight_summary = get_fight_summary(fight_soup, fight_ID)
+
     fight_table = fight_soup.find_all("table", class_="b-fight-details__table")
     if len(fight_table) < 2:
         print(f' broken url: {url}')
@@ -117,26 +161,56 @@ def process_fight_data(fight_urls):
     totals = round_stats(totals_round_rows, fight_ID)
     sigs = round_stats(sig_round_rows, fight_ID)
     cleaned_rounds = clean_round(totals, sigs)
-    return cleaned_rounds
+    return cleaned_rounds, fight_summary
 
-def flatten(list_of_lists):
-    flattened_list = []
-    for nested in list_of_lists:
-        flattened_list.extend(nested)
-    return flattened_list
 
-def create_dataframe(row_entries):
+def get_fight_summary(fight_soup, fight_id):
     """
-    creates pandas dataframe of every round ever
-    :param row_entries: list of lists, each list represents a round
-    :return: pd dataframe
+    :param fight_soup: soup of webpage for the fight
+    :param fight_id: int, id of fight
+    :return: list, containing summary of fight
     """
-    cols = ['fight_id', 'round', 'name', 'kd', 'sig_l', 'sig_a', 'sig_p', 'total_l', 'total_a', 'td_l',
-            'td_a', 'td_p', 'sub', 'rev', 'ctrl', 'head_l', 'head_a', 'body_l', 'body_a', 'leg_l', 'leg_a', 'distance_l',
-            'distance_a', 'clinch_l', 'clinch_a', 'ground_l', 'ground_a']
-    fight_stats_df = pd.DataFrame(row_entries, columns = cols)
-    return fight_stats_df
+    fighter1, fighter2 = fight_soup.find_all('a', class_='b-link b-fight-details__person-link')
+    fighter1, fighter2 = fighter1.get_text(strip=True), fighter2.get_text(strip=True)
+    bout_type = fight_soup.find('i', class_='b-fight-details__fight-title').get_text(strip=True)
+    fight_details = fight_soup.find('p', class_='b-fight-details__text')
 
+    # retrieving outcome of fight
+    fighters = fight_soup.find_all('div', class_='b-fight-details__person')
+    result = 'N/A'
+    for fighter in fighters:
+        outcome = fighter.find('i', class_='b-fight-details__person-status').get_text(strip=True)
+        if outcome == 'W':
+            result = fighter.find('a', class_='b-link b-fight-details__person-link').get_text(strip=True)
+            break
+        elif outcome == 'NC':
+            result = 'NC'
+            break
+        elif outcome == 'D':
+            result = 'Draw'
+            break
+
+    method_tag = fight_soup.find('i', class_='b-fight-details__text-item_first')
+    method = method_tag.find_next('i', style='font-style: normal').get_text(strip=True)
+
+    ref = fight_details.find('span').get_text(strip=True)
+
+    values = [fight_id, fighter1, fighter2, result, bout_type, method]
+
+    # retrieves round, time, and format
+    for tag in fight_details.find_all('i'):
+        # Get the next sibling text after each i tag
+        next_text = tag.next_sibling
+        if next_text:
+            cleaned = next_text.strip()
+            if cleaned:
+                values.append(cleaned)
+    values.append(ref)
+    return values
+
+# ================================================================
+
+# ==================== main ======================================
 
 def main():
     start = time.time()
@@ -151,14 +225,17 @@ def main():
     flat_fight_links = flatten(fight_links)
 
     # Retrieve stats concurrently
-    fight_stats = get_stats(flat_fight_links)
+    fight_stats, fight_summaries = get_stats(flat_fight_links)
 
     # Create and save the dataframe
-    fight_df = create_dataframe(fight_stats)
-    fight_df.to_csv('bound_statistics.csv', index=False)
+    fight_df = create_stat_df(fight_stats)
+    fight_df.to_csv('round_statistics.csv', index=False)
+
+    summary_df = create_summary_df(fight_summaries)
+    summary_df.to_csv('fight_summaries.csv', index=False)
+
     end = time.time()
     print(f'Time taken: {end - start:.2f} seconds')
-
 
 if __name__ == "__main__":
     main()

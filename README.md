@@ -7,8 +7,6 @@ This project captures:
 - Fighter attributes and overall statistics
 - Fight summaries including winner, method, round, and more
 
-The data is used to build a UFC outcome prediction model.
-
 All data is up-to-date as of **16/04/2025**.
 
 ## Known issues

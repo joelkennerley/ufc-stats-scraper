@@ -28,13 +28,24 @@ def get_fighter_links(letter):
         fighters_urls.append(hyperlink['href'])
     return fighters_urls
 
+def get_fighter_id(fighter_url):
+    """
+    :param fighter_url:  url of fighter
+    :return: trailing path (id)
+    """
+    fighter_url_split = fighter_url.split('/')
+    # example: ['http://ufcstats.com/', 'fighter-details', '93fe7332d16c6ad9']
+    return fighter_url_split[-1]
+
+
 def get_fighter_profile(fighter_url):
     """
     :param fighter_url: url of fighter
     :return: list of the fighters attributes and stats
     """
     sleep_polite()
-    stat_list = []
+    fighter_id = get_fighter_id(fighter_url)
+    stat_list = [fighter_id]
     response = requests.get(fighter_url, headers=get_headers())
     soup = BeautifulSoup(response.content, 'html.parser')
     name = soup.find('span', class_='b-content__title-highlight').get_text(strip=True)
@@ -105,7 +116,7 @@ def main():
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         fighter_urls = list(executor.map(get_fighter_links, list(string.ascii_lowercase)))
-    fighter_urls_flattened = flatten(fighter_urls)
+    fighter_urls_flattened = flatten(fighter_urls)[1:5]
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         fighter_stats = list(executor.map(get_fighter_profile, fighter_urls_flattened))

@@ -38,9 +38,18 @@ def create_stat_df(data):
     return fight_stats_df
 
 def create_summary_df(data):
-    cols = ['fight_id', 'fighter1', 'fighter2', 'result', 'bout', 'method', 'round', 'time', 'format', 'ref']
+    cols = ['fight_id', 'fighter1_id', 'fighter1', 'fighter2_id', 'fighter2', 'result', 'bout', 'method', 'round', 'time', 'format', 'ref', 'date']
     fight_summary_df = pd.DataFrame(data, columns=cols)
     return fight_summary_df
+
+def get_fighter_id(fighter_url):
+    """
+    :param fighter_url:  url of fighter
+    :return: trailing path (id)
+    """
+    fighter_url_split = fighter_url.split('/')
+    # example: ['http://ufcstats.com/', 'fighter-details', '93fe7332d16c6ad9']
+    return fighter_url_split[-1]
 
 # ==============================================================
 
@@ -64,8 +73,8 @@ def get_fight_links(link):
     card_soup = BeautifulSoup(card.content, 'html.parser')
     fight_element = card_soup.find('tbody', class_='b-fight-details__table-body')
     fight_rows = fight_element.find_all('tr')
-    return [fights['data-link'] for fights in fight_rows]
-
+    fight_date = card_soup.find('li', class_="b-list__box-list-item").get_text(strip=True).split(':')[1]
+    return [(fight_date, fights['data-link']) for fights in fight_rows]
 # ================================================================
 
 # ============ Extracting fight stats and summaries ==============
@@ -132,7 +141,7 @@ def clean_round(totals, sigs):
 # retrieve stats for each round in a fight for every fight
 def get_stats(fight_urls):
     with ThreadPoolExecutor(max_workers=10) as executor:
-        processed_data = list(executor.map(process_fight_data, enumerate(fight_urls)))
+        processed_data = list(executor.map(process_fight_data, fight_urls))
 
     all_stats = []
     fight_summaries =[]
@@ -144,13 +153,14 @@ def get_stats(fight_urls):
     return all_stats, fight_summaries
 
 
-def process_fight_data(fight_urls):
-    fight_ID, url = fight_urls
+def process_fight_data(fight_url):
+    fight_date, url = fight_url
     sleep_polite()
     fight = requests.get(url, headers=get_headers())
     fight_soup = BeautifulSoup(fight.content, 'html.parser')
+    fight_ID = url.split('/')[-1]
+    fight_summary = get_fight_summary(fight_soup, fight_ID, fight_date)
 
-    fight_summary = get_fight_summary(fight_soup, fight_ID)
 
     fight_table = fight_soup.find_all("table", class_="b-fight-details__table")
     if len(fight_table) < 2:
@@ -164,13 +174,17 @@ def process_fight_data(fight_urls):
     return cleaned_rounds, fight_summary
 
 
-def get_fight_summary(fight_soup, fight_id):
+def get_fight_summary(fight_soup, fight_id, fight_date):
     """
     :param fight_soup: soup of webpage for the fight
     :param fight_id: int, id of fight
     :return: list, containing summary of fight
     """
     fighter1, fighter2 = fight_soup.find_all('a', class_='b-link b-fight-details__person-link')
+
+    fighter1_id = get_fighter_id(fighter1['href'])
+    fighter2_id = get_fighter_id(fighter2['href'])
+
     fighter1, fighter2 = fighter1.get_text(strip=True), fighter2.get_text(strip=True)
     bout_type = fight_soup.find('i', class_='b-fight-details__fight-title').get_text(strip=True)
     fight_details = fight_soup.find('p', class_='b-fight-details__text')
@@ -195,7 +209,7 @@ def get_fight_summary(fight_soup, fight_id):
 
     ref = fight_details.find('span').get_text(strip=True)
 
-    values = [fight_id, fighter1, fighter2, result, bout_type, method]
+    values = [fight_id, fighter1_id, fighter1, fighter2_id, fighter2, result, bout_type, method]
 
     # retrieves round, time, and format
     for tag in fight_details.find_all('i'):
@@ -206,6 +220,7 @@ def get_fight_summary(fight_soup, fight_id):
             if cleaned:
                 values.append(cleaned)
     values.append(ref)
+    values.append(fight_date)
     return values
 
 # ================================================================
@@ -214,7 +229,7 @@ def get_fight_summary(fight_soup, fight_id):
 
 def main():
     start = time.time()
-    # Get card links
+    # Get card links, exclude first entry as that is upcoming cards not completed
     fight_cards = card_finder(ufc_stats)[1:-30]
 
     # Fetch fight links concurrently
@@ -236,6 +251,7 @@ def main():
 
     end = time.time()
     print(f'Time taken: {end - start:.2f} seconds')
+
 
 if __name__ == "__main__":
     main()

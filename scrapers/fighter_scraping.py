@@ -107,7 +107,7 @@ def create_dataframe(row_entries):
     :param row_entries: list of lists, each list represents a round
     :return: pd dataframe
     """
-    cols = ['name', 'wins', 'losses', 'draws', 'no contests', 'height', 'weight', 'reach', 'stance',
+    cols = ['id', 'name', 'wins', 'losses', 'draws', 'no contests', 'height', 'weight', 'reach', 'stance',
             'dob', 'SLpM', 'str acc', 'SApM', 'str def', 'td avg', 'td acc', 'td def', 'sub avg']
     fighter_stats_df = pd.DataFrame(row_entries, columns = cols)
     return fighter_stats_df
@@ -116,7 +116,7 @@ def main():
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         fighter_urls = list(executor.map(get_fighter_links, list(string.ascii_lowercase)))
-    fighter_urls_flattened = flatten(fighter_urls)[1:5]
+    fighter_urls_flattened = flatten(fighter_urls)
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         fighter_stats = list(executor.map(get_fighter_profile, fighter_urls_flattened))

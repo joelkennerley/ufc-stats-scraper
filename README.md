@@ -7,8 +7,6 @@ This project captures:
 - Fighter attributes and overall statistics
 - Fight summaries including winner, method, round, and more
 
-The data is used to build a UFC outcome prediction model.
-
 All data is up-to-date as of **16/04/2025**.
 
 ## Known issues
@@ -18,7 +16,7 @@ Currently, there's no automatic update functionality for:
 - Updates to fighters' average stats after recent events
 
 **Temporary solution**: Re-run the scripts after each UFC event.  
-Note: `ufc_fighter.py` takes approximately **30 minutes** to run.
+Note: `ufc_scraping.py` takes approximately **30 minutes** to run.
 
 ## libraries
 - `requests`
